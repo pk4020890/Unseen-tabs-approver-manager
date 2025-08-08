@@ -4,57 +4,52 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ChatJoinRequestHandler, ContextTypes
 import os
 
-# Get env variables
-TOKEN = os.getenv("BOT_TOKEN")
-app_url = os.getenv("APP_URL")
+# ------------------ CONFIG ------------------
+TOKEN = os.getenv("BOT_TOKEN")  # Bot token from environment variables
+PORT = int(os.getenv("PORT", 8080))  # Render assigns PORT automatically
+# ---------------------------------------------
 
-# Flask app for uptime ping
-flask_app = Flask('')
+# Flask app for uptime monitoring
+flask_app = Flask(__name__)
 
-@flask_app.route('/')
+@flask_app.route("/")
 def home():
-    return "OK - bot running"
+    return "✅ OK - Bot is running"
 
-def run():
-    flask_app.run(host='0.0.0.0', port=8080)
+def run_flask():
+    flask_app.run(host="0.0.0.0", port=PORT)
 
 def keep_alive():
-    t = Thread(target=run)
+    t = Thread(target=run_flask)
+    t.daemon = True
     t.start()
 
-# Command Handlers
+# ---------------- TELEGRAM BOT ----------------
+# /start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print(f"[LOG] /start command from {update.effective_user.id}")
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text="Bot is running ✅ — Auto Approver Active"
-    )
+    if update.message:
+        await update.message.reply_text("🤖 Bot is running ✅ — Auto Approver Active")
 
+# /status command
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print(f"[LOG] /status command from {update.effective_user.id}")
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text="Bot is working fine! ✅"
-    )
+    if update.message:
+        await update.message.reply_text("📡 Bot is working fine! ✅")
 
-# Auto Approve Handler
+# Auto approve join requests
 async def approve_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.chat_join_request.chat.id
     user_id = update.chat_join_request.from_user.id
     await context.bot.approve_chat_join_request(chat_id, user_id)
-    print(f"[LOG] Approved join request from {user_id} in {chat_id}")
+    print(f"✅ Approved join request from {user_id} in chat {chat_id}")
 
-if __name__ == '__main__':
-    keep_alive()
+# ---------------- RUN ----------------
+if __name__ == "__main__":
+    keep_alive()  # Start Flask in background
 
     app = ApplicationBuilder().token(TOKEN).build()
-
-    # Commands
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("status", status))
-
-    # Auto approve
     app.add_handler(ChatJoinRequestHandler(approve_request))
 
-    print("[LOG] Bot started & polling...")
+    print("🚀 Bot started successfully!")
     app.run_polling()
