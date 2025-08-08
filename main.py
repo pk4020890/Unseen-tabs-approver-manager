@@ -1,33 +1,47 @@
-import os
+from flask import Flask
+from threading import Thread
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from telegram import ChatJoinRequest
+from telegram.ext import ApplicationBuilder, CommandHandler, ChatJoinRequestHandler, ContextTypes
+import os
 
-TOKEN = os.getenv("BOT_TOKEN")  # Render me env variable me daloge
-# BOT_TOKEN me apna Telegram bot ka token dalna
+TOKEN = os.getenv("BOT_TOKEN")
+app_url = os.getenv("APP_URL")
 
-app = ApplicationBuilder().token(TOKEN).build()
+# Flask app for uptime ping
+flask_app = Flask('')
 
-# Auto-approve join requests
+@flask_app.route('/')
+def home():
+    return "OK - bot running"
+
+def run():
+    flask_app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
+# Command Handlers
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Bot is running ✅ — Auto Approver Active")
+
+async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Bot is working fine! ✅")
+
+# Auto Approve Handler
 async def approve_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        chat_id = update.chat_join_request.chat.id
-        user_id = update.chat_join_request.from_user.id
-        await context.bot.approve_chat_join_request(chat_id, user_id)
-        print(f"Approved: {user_id} in {chat_id}")
-    except Exception as e:
-        print(f"Error: {e}")
+    chat_id = update.chat_join_request.chat.id
+    user_id = update.chat_join_request.from_user.id
+    await context.bot.approve_chat_join_request(chat_id, user_id)
+    print(f"Approved join request from {user_id} in {chat_id}")
 
-# Status command
-async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ Bot is online and running!")
+if __name__ == '__main__':
+    keep_alive()
 
-# Handlers
-app.add_handler(CommandHandler("status", status_command))
-app.add_handler(
-    telegram.ext.ChatJoinRequestHandler(approve_request)
-)
+    app = ApplicationBuilder().token(TOKEN).build()
 
-if __name__ == "__main__":
-    print("Bot is starting...")
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("status", status))
+    app.add_handler(ChatJoinRequestHandler(approve_request))
+
     app.run_polling()
